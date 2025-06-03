@@ -56,7 +56,8 @@ testEngines.each { engine ->
         useJUnitPlatform()
 
 
-        enabled = gradle.startParameter.taskNames.contains(":testing:" + project.name + ":test")
+        enabled = gradle.startParameter.taskNames.contains(":testing:" + project.name + ":test") ||
+                  gradle.startParameter.taskNames.contains(":testing:" + project.name + ":" +task.name)
         doFirst {
             project.mkdir(tmpdir)
         }

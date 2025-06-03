@@ -250,8 +250,7 @@ public class AlgorithmTestsIT extends AppTestBase
         return path.toString();
     }
 
-    private ArrayList<CTimeSeries> loadTSimport(String folderTSstr, TsImporter importer)
-    throws Exception
+    private ArrayList<CTimeSeries> loadTSimport(String folderTSstr, TsImporter importer) throws Exception
     {
         File folderTS = new File(folderTSstr);
         ArrayList<CTimeSeries> fullTs = new ArrayList<CTimeSeries>();
@@ -281,8 +280,7 @@ public class AlgorithmTestsIT extends AppTestBase
         return fullTs;
     }
 
-    private void loadRatingimport(String folderRatingStr)
-    throws Exception
+    private void loadRatingimport(String folderRatingStr) throws Exception
     {
         File folderTS = new File(folderRatingStr);
         if (!folderTS.exists())
