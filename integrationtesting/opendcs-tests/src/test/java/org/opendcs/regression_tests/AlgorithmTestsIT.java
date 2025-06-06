@@ -2,6 +2,7 @@ package org.opendcs.regression_tests;
 
 import static org.junit.Assume.assumeFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.opendcs.fixtures.assertions.TimeSeries.assertEquals;
@@ -65,6 +66,7 @@ import opendcs.dai.SiteDAI;
 import decodes.cwms.CwmsTimeSeriesDb;
 import decodes.cwms.rating.CwmsRatingDao;
 import ilex.var.TimedVariable;
+import ilex.util.FileLogger;
 import ilex.util.FileUtil;
 
 import hec.data.RatingException;
@@ -153,88 +155,108 @@ public class AlgorithmTestsIT extends AppTestBase
         }
     }
 
-    private DynamicTest getDynamicTest(File test, File comp, TsImporter importer, TimeSeriesDAI tsDao){
-        return DynamicTest.dynamicTest(comp.getName() +" "+test.getName(), () -> {
-            for (File comp_data : test.listFiles()) 
+    private DynamicTest getDynamicTest(File test, File comp, TsImporter importer, TimeSeriesDAI tsDao)
+    {
+        final String testName = comp.getName()+"-"+test.getName();
+        return DynamicTest.dynamicTest(testName, () -> {
+            ilex.util.Logger originalLog = ilex.util.Logger.instance();
+            ilex.util.FileLogger fl = null;
+            try
             {
-                // Process comp xml
-                String name = comp_data.getName();
-                if (name.contains("Comp.xml"))
+                fl = new FileLogger("test", new File(configuration.getUserDir(), testName + "-algorithm-test.log").getAbsolutePath(), 200*1024*1024);
+                fl.setMinLogPriority(ilex.util.Logger.E_DEBUG3);
+                ilex.util.Logger.setLogger(fl);
+                for (File comp_data : test.listFiles()) 
                 {
-                    log.info("Comps: " + comp_data.getAbsolutePath());
-                    String compstr = comp_data.getAbsolutePath();
-                    List<String> compxml =  Arrays.asList(compstr);
-                    ImportComp ic = new ImportComp(tsDb, true, false, compxml);
-                    ic.runApp();
-                }
-                else if (name.contains(".config"))
-                {
-                    log.info("Has config: " + comp_data.getAbsolutePath());
-                    File configFile = new File(comp_data.getAbsolutePath());
-                    try (InputStream configStream = new FileInputStream(configFile)) {
-                        String firstLine = new BufferedReader(new InputStreamReader(configStream)).readLine();
-                        String keyword = "EnableOn:";
-                        if (firstLine != null && firstLine.contains(keyword)) {
-                            String substring = firstLine.substring(firstLine.indexOf(keyword) + keyword.length()).trim();
-                            final String testEngine = System.getProperty("opendcs.test.engine", "").trim();
-                            assumeFalse("Test is disabled by config file for: " + substring, !substring.equals(testEngine));
+                    // Process comp xml
+                    String name = comp_data.getName();
+                    if (name.contains("Comp.xml"))
+                    {
+                        log.info("Comps: " + comp_data.getAbsolutePath());
+                        String compstr = comp_data.getAbsolutePath();
+                        List<String> compxml =  Arrays.asList(compstr);
+                        ImportComp ic = new ImportComp(tsDb, true, false, compxml);
+                        ic.runApp();
+                    }
+                    else if (name.contains(".config"))
+                    {
+                        log.info("Has config: " + comp_data.getAbsolutePath());
+                        File configFile = new File(comp_data.getAbsolutePath());
+                        try (InputStream configStream = new FileInputStream(configFile)) {
+                            String firstLine = new BufferedReader(new InputStreamReader(configStream)).readLine();
+                            String keyword = "EnableOn:";
+                            if (firstLine != null && firstLine.contains(keyword)) {
+                                String substring = firstLine.substring(firstLine.indexOf(keyword) + keyword.length()).trim();
+                                final String testEngine = System.getProperty("opendcs.test.engine", "").trim();
+                                assumeFalse("Test is disabled by config file for: " + substring, !substring.equals(testEngine));
+                            }
                         }
                     }
                 }
-            }
-            loadRatingimport(buildFilePath(test.getAbsolutePath(),"rating"));
+                loadRatingimport(buildFilePath(test.getAbsolutePath(),"rating"));
 
-            List<CTimeSeries> inputTS = loadTSimport(buildFilePath(test.getAbsolutePath(),"timeseries","inputs"), importer);
-            Collection<CTimeSeries> outputTS = loadTSimport(buildFilePath(test.getAbsolutePath(),"timeseries","outputs"), importer);
-            Collection<CTimeSeries> expectedOutputTS = loadTSimport(buildFilePath(test.getAbsolutePath(),"timeseries","expectedOutputs"), importer);
+                List<CTimeSeries> inputTS = loadTSimport(buildFilePath(test.getAbsolutePath(),"timeseries","inputs"), importer);
+                Collection<CTimeSeries> outputTS = loadTSimport(buildFilePath(test.getAbsolutePath(),"timeseries","outputs"), importer);
+                Collection<CTimeSeries> expectedOutputTS = loadTSimport(buildFilePath(test.getAbsolutePath(),"timeseries","expectedOutputs"), importer);
 
-            DbComputation testComp = null;
-            try (ComputationDAI compdao = tsDb.makeComputationDAO())
-            {
-               testComp = compdao.getComputationByName(test.getName()+comp.getName());
-            }
-
-            DataCollection theData = new DataCollection();
-
-            for (CTimeSeries ctsi: inputTS){
-                for (int idx = 0; idx < ctsi.size(); idx++){
-                    VarFlags.setWasAdded(ctsi.sampleAt(idx));
+                DbComputation testComp = null;
+                try (ComputationDAI compdao = tsDb.makeComputationDAO())
+                {
+                testComp = compdao.getComputationByName(test.getName()+comp.getName());
                 }
-                theData.addTimeSeries(ctsi);
-            }
-            for (CTimeSeries ctso: outputTS){
-                theData.addTimeSeries(ctso);
-            }
 
-            // new SimpleDateFormat("yyyy/MM/dd-HH:mm:ss z")
-            //testComp.setProperty("ValidStart", "2024/10/09-23:00:00 UTC");
-            testComp.prepareForExec(tsDb);
-            testComp.apply(theData, tsDb);
+                DataCollection theData = new DataCollection();
 
-            Iterator<CTimeSeries> iterExpect = expectedOutputTS.iterator();
-            
-            while (iterExpect.hasNext())
-            {
-                CTimeSeries currExpect = iterExpect.next();
-                String tsName = currExpect.getNameString();
-                TimeSeriesIdentifier outputID = tsDao.getTimeSeriesIdentifier(tsName);
-
-                log.info(currExpect.getNameString());
-
-                CTimeSeries algoOutput = theData.getTimeSeriesByTsidKey(outputID);
-                log.info("expected units: " + currExpect.getUnitsAbbr());
-                TSUtil.convertUnits(algoOutput, currExpect.getUnitsAbbr());
-
-                for (int i = 0; i<algoOutput.size(); i++){
-                    TimedVariable TVOutput = algoOutput.sampleAt(i);
-                    TimedVariable TVExpected = currExpect.findWithin(TVOutput.getTime(), 0);
-                    log.info("output time: "+TVOutput.getTime());
-                    log.info("output value  : "+TVOutput.getDoubleValue());
-                    log.info("expected value: "+TVExpected.getDoubleValue());
+                for (CTimeSeries ctsi: inputTS){
+                    for (int idx = 0; idx < ctsi.size(); idx++){
+                        VarFlags.setWasAdded(ctsi.sampleAt(idx));
+                    }
+                    theData.addTimeSeries(ctsi);
                 }
-                assertEquals(currExpect, algoOutput, "expected true", testComp.getValidStart(), testComp.getValidEnd());
+                for (CTimeSeries ctso: outputTS){
+                    theData.addTimeSeries(ctso);
+                }
+
+                // new SimpleDateFormat("yyyy/MM/dd-HH:mm:ss z")
+                //testComp.setProperty("ValidStart", "2024/10/09-23:00:00 UTC");
+                testComp.prepareForExec(tsDb);
+                testComp.apply(theData, tsDb);
+
+                Iterator<CTimeSeries> iterExpect = expectedOutputTS.iterator();
+                
+                while (iterExpect.hasNext())
+                {
+                    CTimeSeries currExpect = iterExpect.next();
+                    String tsName = currExpect.getNameString();
+                    TimeSeriesIdentifier outputID = tsDao.getTimeSeriesIdentifier(tsName);
+
+                    log.info(currExpect.getNameString());
+
+                    CTimeSeries algoOutput = theData.getTimeSeriesByTsidKey(outputID);
+                    assertNotNull(algoOutput, "No output timeseries.");
+                    log.info("expected units: " + currExpect.getUnitsAbbr());
+                    TSUtil.convertUnits(algoOutput, currExpect.getUnitsAbbr());
+
+                    for (int i = 0; i<algoOutput.size(); i++){
+                        TimedVariable TVOutput = algoOutput.sampleAt(i);
+                        TimedVariable TVExpected = currExpect.findWithin(TVOutput.getTime(), 0);
+                        log.info("output time: "+TVOutput.getTime());
+                        log.info("output value  : "+TVOutput.getDoubleValue());
+                        log.info("expected value: "+TVExpected.getDoubleValue());
+                    }
+                    assertEquals(currExpect, algoOutput, "expected true", testComp.getValidStart(), testComp.getValidEnd());
+                }
+            }
+            finally
+            {
+                if (fl != null)
+                {
+                    ilex.util.Logger.setLogger(originalLog);
+                    fl.close();
+                }
             }
         });
+        
     }
 
     public static String buildFilePath(String... parts) {
