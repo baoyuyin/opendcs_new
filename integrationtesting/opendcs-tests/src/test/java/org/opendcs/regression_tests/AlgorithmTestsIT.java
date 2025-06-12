@@ -166,6 +166,11 @@ public class AlgorithmTestsIT extends AppTestBase
                 fl = new FileLogger("test", new File(configuration.getUserDir(), testName + "-algorithm-test.log").getAbsolutePath(), 200*1024*1024);
                 fl.setMinLogPriority(ilex.util.Logger.E_DEBUG3);
                 ilex.util.Logger.setLogger(fl);
+                loadRatingimport(buildFilePath(test.getAbsolutePath(),"rating"));
+
+                List<CTimeSeries> inputTS = loadTSimport(buildFilePath(test.getAbsolutePath(),"timeseries","inputs"), importer);
+                Collection<CTimeSeries> outputTS = loadTSimport(buildFilePath(test.getAbsolutePath(),"timeseries","outputs"), importer);
+                Collection<CTimeSeries> expectedOutputTS = loadTSimport(buildFilePath(test.getAbsolutePath(),"timeseries","expectedOutputs"), importer);
                 for (File comp_data : test.listFiles()) 
                 {
                     // Process comp xml
@@ -193,16 +198,12 @@ public class AlgorithmTestsIT extends AppTestBase
                         }
                     }
                 }
-                loadRatingimport(buildFilePath(test.getAbsolutePath(),"rating"));
-
-                List<CTimeSeries> inputTS = loadTSimport(buildFilePath(test.getAbsolutePath(),"timeseries","inputs"), importer);
-                Collection<CTimeSeries> outputTS = loadTSimport(buildFilePath(test.getAbsolutePath(),"timeseries","outputs"), importer);
-                Collection<CTimeSeries> expectedOutputTS = loadTSimport(buildFilePath(test.getAbsolutePath(),"timeseries","expectedOutputs"), importer);
+                
 
                 DbComputation testComp = null;
                 try (ComputationDAI compdao = tsDb.makeComputationDAO())
                 {
-                testComp = compdao.getComputationByName(test.getName()+comp.getName());
+                    testComp = compdao.getComputationByName(test.getName()+comp.getName());
                 }
 
                 DataCollection theData = new DataCollection();
