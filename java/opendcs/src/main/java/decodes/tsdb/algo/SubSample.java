@@ -33,22 +33,14 @@ public class SubSample extends decodes.tsdb.algo.AW_AlgorithmBase
 
     private LocalDateTime nextOutput = null; // LocalDateTime value used for interval math
     private TemporalAmount outputIncr = null;
-    private PropertySpec subsampPropertySpecs[] =
-    {
-        new PropertySpec("samplingTimeOffset", PropertySpec.STRING,
-            "(optional) E.g. for a daily subsample: '6 Hours' to grab the 6AM value.")
-    };
-
-    @Override
-    protected PropertySpec[] getAlgoPropertySpecs()
-    {
-        return subsampPropertySpecs;
-    }
 
     @Output(type = Double.class)
     public NamedVariable outputLongInterval = new NamedVariable("outputLongInterval", 0);
 
 
+    @org.opendcs.annotations.PropertySpec(propertySpecType = PropertySpec.STRING, 
+                                          description = "(optional) E.g. for a daily subsample: '6 Hours' to grab the 6AM value.",
+                                          value = "")
     public String samplingTimeOffset = "";
 
     // Allow javac to generate a no-args constructor.
@@ -162,16 +154,14 @@ public class SubSample extends decodes.tsdb.algo.AW_AlgorithmBase
     protected void doAWTimeSlice()
         throws DbCompException
     {
-        LocalDateTime nextOutputT = nextOutput;
-
         LocalDateTime currentTime = LocalDateTime.ofInstant(_timeSliceBaseTime.toInstant(), aggTZ.toZoneId());
-        Duration delta = Duration.between(nextOutputT, currentTime);
+        Duration delta = Duration.between(nextOutput, currentTime);
         final long deltaSec = delta.toSeconds();
         if (deltaSec <= roundSec && deltaSec >= -roundSec)
         {
             ZonedDateTime zdt = currentTime.atZone(aggTZ.toZoneId());
             zdt = zdt.withZoneSameInstant(ZoneId.of("UTC"));
-            debug1("Outputting value '" + inputShortInterval + "' at " + nextOutputT.format(debugLDTF)
+            debug1("Outputting value '" + inputShortInterval + "' at " + nextOutput.format(debugLDTF)
                 + ", deltaSec=" + deltaSec + ", timeSlice="
                 + currentTime.format(debugLDTF)+"/"+zdt.format(debugZDTF));
 
