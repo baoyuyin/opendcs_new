@@ -239,7 +239,7 @@ public NamedVariable outputLongInterval = new NamedVariable("outputLongInterval"
 		long deltaSec = (_timeSliceBaseTime.getTime() - nextOutputT.getTime()) / 1000L;
 		if (deltaSec <= roundSec && deltaSec >= -roundSec)
 		{
-			debug1("Outputting value at " + debugSdf.format(nextOutputT)
+			debug1("Outputting value '" + inputShortInterval + "' at " + debugSdf.format(nextOutputT)
 				+ ", deltaSec=" + deltaSec + ", timeSlice=" 
 				+ debugSdf.format(_timeSliceBaseTime));
 			setOutput(outputLongInterval, inputShortInterval, nextOutputT);
